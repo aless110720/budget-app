@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Mon Budget</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f172a;color:#f1f5f9;min-height:100vh;max-width:430px;margin:0 auto;padding-bottom:80px}
+.header{background:linear-gradient(160deg,#1e293b,#0f172a);padding:50px 20px 20px;border-bottom:1px solid #334155}
+.header h1{font-size:13px;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px}
+.header .montant{font-size:32px;font-weight:800;margin-bottom:5px}
+.header .label{font-size:12px;color:#94a3b8}
+.vert{color:#4ade80}
+.rouge{color:#f87171}
+.content{padding:20px}
+.card{background:#1e293b;border-radius:16px;padding:20px;margin-bottom:15px;border:1px solid #334155}
+.section-title{font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.big-number{font-size:24px;font-weight:800;margin-bottom:15px}
+.item{display:flex;justify-content:space-between;padding:12px 0;border-bottom:1px solid #334155}
+.item:last-child{border-bottom:none}
+.item-left{display:flex;gap:10px;align-items:center}
+.item-icon{font-size:18px}
+.item-label{font-size:14px}
+.item-cat{font-size:11px;color:#64748b}
+.item-amount{font-size:15px;font-weight:700}
+.item-actions{display:flex;gap:8px}
+.btn{background:none;border:none;color:#64748b;cursor:pointer;font-size:14px;padding:5px}
+.btn-add{background:linear-gradient(135deg,#38bdf8,#6366f1);border:none;border-radius:12px;color:#fff;font-size:20px;width:40px;height:40px;cursor:pointer;float:right}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:#0f172a;border-top:1px solid #334155;display:flex;justify-content:space-around;padding:10px 0 25px;z-index:50}
+.tab{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px;opacity:0.4}
+.tab.active{opacity:1}
+.tab-icon{font-size:20px}
+.tab-label{font-size:9px;color:#94a3b8}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:flex-end;justify-content:center}
+.modal.open{display:flex}
+.modal-box{background:#1e293b;border-radius:24px 24px 0 0;padding:24px 20px 40px;width:100%;max-width:430px}
+.modal-header{display:flex;justify-content:space-between;margin-bottom:20px}
+.modal-title{font-size:18px;font-weight:700}
+.modal-close{background:none;border:none;color:#64748b;font-size:24px;cursor:pointer}
+.modal-input{width:100%;padding:12px 16px;border-radius:12px;border:1px solid #334155;background:#0f172a;color:#f1f5f9;font-size:15px;outline:none;margin-bottom:10px;font-family:inherit}
+.modal-select{appearance:none;-webkit-appearance:none}
+.btn-save{width:100%;padding:14px;border-radius:14px;border:none;background:linear-gradient(135deg,#38bdf8,#6366f1);color:#fff;font-size:16px;font-weight:700;cursor:pointer}
+.empty{text-align:center;color:#64748b;padding:20px;font-size:14px}
+.pbar{width:100%;height:8px;background:#334155;border-radius:4px;overflow:hidden;margin:10px 0}
+.pbar-fill{height:100%;background:#4ade80;border-radius:4px;transition:width 0.5s}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="mois">Mon Budget</h1>
+  <div class="montant" id="reste">+0 €</div>
+  <div class="label">reste après dépenses</div>
+</div>
+
+<div class="content" id="content"></div>
+
+<div class="bottom-nav">
+  <button class="tab active" onclick="switchTab('dashboard')"><div class="tab-icon">📊</div><div class="tab-label">Tableau</div></button>
+  <button class="tab" onclick="switchTab('revenus')"><div class="tab-icon">💰</div><div class="tab-label">Revenus</div></button>
+  <button class="tab" onclick="switchTab('fixe')"><div class="tab-icon">📌</div><div class="tab-label">Fixe</div></button>
+  <button class="tab" onclick="switchTab('variable')"><div class="tab-icon">🔄</div><div class="tab-label">Variable</div></button>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Ajouter</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+const MOIS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+const ICONS = {"Logement":"🏠","Assurance":"🛡️","Services":"📶","Transport":"🚗","Vie quotidienne":"🛒","Loisirs":"🎬","Santé":"💊","Éducation":"📚","Autre":"📦"};
+const CATS = ["Logement","Assurance","Services","Transport","Vie quotidienne","Loisirs","Santé","Éducation","Autre"];
+
+let data = {
+  revenus: [{id:1,label:"Salaire net",amount:2800}],
+  fixe: [
+    {id:1,label:"Loyer",amount:950,cat:"Logement"},
+    {id:2,label:"Assurance vie",amount:45,cat:"Assurance"},
+    {id:3,label:"Internet",amount:60,cat:"Services"}
+  ],
+  variable: [
+    {id:1,label:"Alimentation",amount:400,cat:"Vie quotidienne"},
+    {id:2,label:"Transport",amount:120,cat:"Transport"},
+    {id:3,label:"Loisirs",amount:150,cat:"Loisirs"}
+  ]
+};
+
+let currentTab = 'dashboard';
+let editMode = null;
+
+function load() {
+  try {
+    const saved = localStorage.getItem('budget_data');
+    if (saved) data = JSON.parse(saved);
+  } catch(e) {}
+}
+
+function save() {
+  try {
+    localStorage.setItem('budget_data', JSON.stringify(data));
+  } catch(e) {}
+}
+
+function totals() {
+  const rev = data.revenus.reduce((s,i) => s + i.amount, 0);
+  const fix = data.fixe.reduce((s,i) => s + i.amount, 0);
+  const vari = data.variable.reduce((s,i) => s + i.amount, 0);
+  return {rev, fix, vari, total: fix + vari, reste: rev - fix - vari};
+}
+
+function fmt(n) {
+  return n.toLocaleString('fr-FR');
+}
+
+function nextId(arr) {
+  return arr.length ? Math.max(...arr.map(i => i.id)) + 1 : 1;
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  event.target.closest('.tab').classList.add('active');
+  render();
+}
+
+function render() {
+  const t = totals();
+  const now = new Date();
+  
+  document.getElementById('mois').textContent = `Mon Budget — ${MOIS[now.getMonth()]} ${now.getFullYear()}`;
+  document.getElementById('reste').textContent = `${t.reste >= 0 ? '+' : ''}${fmt(t.reste)} €`;
+  document.getElementById('reste').className = `montant ${t.reste >= 0 ? 'vert' : 'rouge'}`;
+
+  const content = document.getElementById('content');
+  
+  if (currentTab === 'dashboard') {
+    content.innerHTML = `
+      <div class="card">
+        <div class="section-title">Vue d'ensemble</div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:15px">
+          <div><div style="font-size:11px;color:#94a3b8;margin-bottom:3px">REVENUS</div><div style="font-size:20px;font-weight:800;color:#38bdf8">${fmt(t.rev)} €</div></div>
+          <div style="text-align:right"><div style="font-size:11px;color:#94a3b8;margin-bottom:3px">DÉPENSES</div><div style="font-size:20px;font-weight:800;color:#f87171">${fmt(t.total)} €</div></div>
+        </div>
+        <div class="pbar">
+          <div class="pbar-fill" style="width:${t.rev ? Math.min((t.reste / t.rev) * 100, 100) : 0}%"></div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:5px">
+          ${t.reste >= 0 ? `Il vous reste ${fmt(t.reste)} € ce mois-ci` : `Vous êtes en déficit de ${fmt(Math.abs(t.reste))} €`}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Répartition</div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #334155">
+          <span style="font-size:14px">Dépenses fixes</span>
+          <span style="font-size:14px;font-weight:700;color:#6366f1">${fmt(t.fix)} €</span>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:10px 0">
+          <span style="font-size:14px">Dépenses variables</span>
+          <span style="font-size:14px;font-weight:700;color:#f59e0b">${fmt(t.vari)} €</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="section-title">💡 Conseil</div>
+        <div style="font-size:14px;line-height:1.6;color:#cbd5e1">
+          ${t.reste >= t.rev * 0.2 ? '🌟 Excellent ! Vous épargnez plus de 20% de vos revenus.' : 
+            t.reste >= 0 ? '⚠️ Essayez d\'épargner au moins 20% de vos revenus pour une bonne santé financière.' :
+            '🚨 Attention ! Vos dépenses dépassent vos revenus. Réduisez vos dépenses variables.'}
+        </div>
+      </div>
+    `;
+  } else {
+    renderList(currentTab);
+  }
+}
+
+function renderList(type) {
+  const isRev = type === 'revenus';
+  const list = data[type] || [];
+  const t = totals();
+  const total = isRev ? t.rev : type === 'fixe' ? t.fix : t​​​​​​​​​​​​​​​​
